@@ -124,6 +124,10 @@ try {
   ).toBe("forward");
   await page.getByLabel("Full name").fill("Preview User");
   await page.getByLabel("Email address").fill("preview@example.com");
+  await page.getByLabel("Phone number").fill("+971501234567");
+  await page.getByLabel("Role", { exact: false }).selectOption("Student");
+  await page.getByRole("slider", { name: /Grade/ }).focus();
+  await page.getByRole("slider", { name: /Grade/ }).press("End");
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Preview registration" }).click();
   await page.waitForURL("**/thank-you");
@@ -179,7 +183,7 @@ try {
   await page.waitForTimeout(100);
   expect(new URL(page.url()).pathname).toBe("/");
   await expect(
-    page.getByRole("heading", { name: "Every Voice Has a Story." }),
+    page.getByRole("heading", { name: /Every Voice\s+Has a Story/ }),
   ).toBeVisible();
 
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -193,6 +197,7 @@ try {
     count,
   );
 
+  await page.waitForLoadState("networkidle");
   await page.goto(`${baseURL}/thank-you`);
   expect(
     await page

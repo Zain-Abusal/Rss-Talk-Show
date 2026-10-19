@@ -15,6 +15,7 @@ export default function TransitionLink({
   const navigate = usePageNavigation();
   return (
     <NextLink
+      prefetch={process.env.NODE_ENV === "production"}
       {...props}
       href={href}
       replace={replace}

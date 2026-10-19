@@ -2,19 +2,19 @@ import { Badge } from "@/components/ui/badge";
 import { Artwork } from "@/components/artwork";
 import { ContactForm } from "@/components/contact-form";
 import { Accordion, AccordionItem } from "@/components/ui/accordion";
-import { faqs } from "@/config/site";
+import { getSite } from "@/lib/site/server";
 export const metadata = { title: "Contact" };
-export default function Contact() {
+export default async function Contact() {
+  const {
+    content: { contact: copy },
+  } = await getSite();
   return (
     <div className="page contact-page">
       <section className="intro contact-intro">
         <div>
           <Badge>Contact</Badge>
-          <h1>Questions? Let’s Talk</h1>
-          <p>
-            Have a question about the event, tickets or anything else?
-            <br className="desktop-break" /> Get in touch. We’re here to help!
-          </p>
+          <h1>{copy.title}</h1>
+          <p>{copy.description}</p>
         </div>
         <Artwork name="question" />
       </section>
@@ -23,9 +23,9 @@ export default function Contact() {
         <section className="faq-section">
           <h2>Frequently Asked Questions</h2>
           <Accordion type="single" collapsible>
-            {faqs.map((faq, index) => (
+            {copy.faqs.map((faq, index) => (
               <AccordionItem
-                key={faq.question}
+                key={index}
                 value={`faq-${index}`}
                 title={faq.question}
               >

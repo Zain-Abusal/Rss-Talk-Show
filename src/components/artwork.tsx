@@ -39,6 +39,10 @@ export function Artwork({
               : [
                     "conversation",
                     "question",
+                    ...(className === "register-art" ||
+                    className === "recovery-art"
+                      ? ["ticket"]
+                      : []),
                     "calendar",
                     "clock",
                     "location",

@@ -1,3 +1,7 @@
+import { cookies } from "next/headers";
+import { getSite } from "@/lib/site/server";
+import { findTicket } from "@/lib/tickets";
+import { TicketCard } from "@/components/ticket-card";
 import Link from "@/components/motion/transition-link";
 import { ArrowRight } from "lucide-react";
 import { CompletionMark } from "@/components/motion/completion-mark";
@@ -5,10 +9,40 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 export const metadata = {
-  title: "Thank you | Registration preview",
+  title: "Registration confirmation",
   robots: { index: false, follow: false },
 };
-export default function ThankYou() {
+export default async function ThankYou() {
+  const site = await getSite();
+  const token = (await cookies()).get("rss_ticket")?.value;
+  const ticket = token ? await findTicket(token) : null;
+  if (ticket && token && ticket.status !== "cancelled")
+    return (
+      <div className="page thank-you-page">
+        <CompletionMark />
+        <Badge>Registration complete</Badge>
+        <h1>{site.content.thankYou.title}</h1>
+        <p>{site.content.thankYou.description}</p>
+        <TicketCard token={token} />
+        <Card className="next-steps">
+          <h2>{site.content.thankYou.nextTitle}</h2>
+          <p>{site.content.thankYou.nextDescription}</p>
+        </Card>
+      </div>
+    );
+  if (site.configured)
+    return (
+      <div className="page thank-you-page">
+        <h1>Your ticket</h1>
+        <p>
+          No registration receipt was found in this browser. Use your private
+          ticket link or retrieve it using your registration details.
+        </p>
+        <Link className="text-link" href="/recover-ticket">
+          Find my ticket
+        </Link>
+      </div>
+    );
   return (
     <div className="page thank-you-page">
       <CompletionMark />

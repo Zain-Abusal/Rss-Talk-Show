@@ -10,9 +10,12 @@ import { Button } from "@/components/ui/button";
 export function Header() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const activePath = ["/register", "/thank-you"].includes(pathname)
-    ? "/tickets"
-    : pathname;
+  const activePath =
+    ["/register", "/thank-you", "/recover-ticket"].includes(pathname) ||
+    pathname.startsWith("/ticket/")
+      ? "/tickets"
+      : pathname;
+  if (pathname.startsWith("/admin")) return null;
   return (
     <header className="header">
       <Link href="/" className="brand" aria-label="RSS Talk Show home">

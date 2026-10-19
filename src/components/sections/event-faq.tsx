@@ -1,8 +1,11 @@
 import Link from "@/components/motion/transition-link";
 import { ArrowRight } from "lucide-react";
 import { Accordion, AccordionItem } from "@/components/ui/accordion";
-import { registrationFaqs } from "@/config/site";
-export function EventFaq() {
+import { getSite } from "@/lib/site/server";
+export async function EventFaq() {
+  const {
+    content: { registrationFaqs },
+  } = await getSite();
   return (
     <section
       className="ticket-faq"

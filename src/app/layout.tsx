@@ -16,6 +16,9 @@ import "./globals.css";
 import { Header } from "@/components/layout/header";
 import { PageMotion } from "@/components/motion/page-motion";
 import { PageNavigation } from "@/components/motion/page-navigation";
+import { SiteProvider } from "@/components/site/site-provider";
+import { getSite } from "@/lib/site/server";
+export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: {
     default: "RSS Talk Show | Every Voice Has a Story",
@@ -24,34 +27,37 @@ export const metadata: Metadata = {
   description:
     "Meaningful conversations, new perspectives, and ideas that matter. A school-organized talk show for our community.",
 };
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const site = await getSite();
   return (
     <html lang="en" className={jakarta.variable}>
       <body>
-        <PageNavigation>
-          <a className="skip-link" href="#main">
-            Skip to content
-          </a>
-          <div className="site-frame">
-            <Header />
-            <main id="main">
-              {children}
-              <PageMotion />
-            </main>
-            <div className="frame-decoration" aria-hidden="true" />
-          </div>
-          <footer>
-            <span>© RSS Talk Show · Every voice has a story.</span>
-            <nav className="footer-links" aria-label="Footer navigation">
-              <Link href="/about">About the show</Link>
-              <Link href="/contact">Contact & FAQ</Link>
-            </nav>
-          </footer>
-        </PageNavigation>
+        <SiteProvider site={site}>
+          <PageNavigation>
+            <a className="skip-link" href="#main">
+              Skip to content
+            </a>
+            <div className="site-frame">
+              <Header />
+              <main id="main">
+                {children}
+                <PageMotion />
+              </main>
+              <div className="frame-decoration" aria-hidden="true" />
+            </div>
+            <footer>
+              <span>{site.content.footer}</span>
+              <nav className="footer-links" aria-label="Footer navigation">
+                <Link href="/about">About the show</Link>
+                <Link href="/contact">Contact & FAQ</Link>
+              </nav>
+            </footer>
+          </PageNavigation>
+        </SiteProvider>
       </body>
     </html>
   );

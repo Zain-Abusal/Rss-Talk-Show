@@ -16,6 +16,7 @@ const routes = [
   "/contact",
   "/register",
   "/thank-you",
+  "/recover-ticket",
 ];
 
 try {
@@ -64,9 +65,19 @@ try {
     page.getByRole("navigation", { name: "Main navigation" }).getByRole("link"),
   ).toHaveText(["Home", "About", "Tickets", "Contact"]);
 
+  await page.addInitScript(() => {
+    const observe = IntersectionObserver.prototype.observe;
+    IntersectionObserver.prototype.observe = function (element) {
+      element.setAttribute("data-qa-motion-observed", "");
+      return observe.call(this, element);
+    };
+  });
   await page.setViewportSize({ width: 375, height: 600 });
   await page.goto(`${baseURL}/`);
   await page.evaluate(() => document.fonts.ready);
+  await page
+    .locator(".team-section[data-qa-motion-observed]")
+    .waitFor({ state: "attached" });
   await page.evaluate(() => new Promise(requestAnimationFrame));
   await page.evaluate(() =>
     document
@@ -93,6 +104,16 @@ try {
   await expect(page.getByText("Please enter your name.")).toBeVisible();
   await page.getByLabel("Name", { exact: true }).fill("Preview User");
   await page.getByLabel("Email", { exact: true }).fill("preview@example.com");
+  await page.getByLabel("Role", { exact: true }).selectOption("Teacher");
+  await expect(page.getByRole("slider", { name: "Grade" })).toHaveCount(0);
+  await page.getByLabel("Role", { exact: true }).selectOption("Student");
+  await page.getByRole("slider", { name: "Grade" }).press("End");
+  await expect(page.getByRole("slider", { name: "Grade" })).toHaveAttribute(
+    "aria-valuetext",
+    "Grade 12",
+  );
+  await page.getByLabel("Role", { exact: true }).selectOption("Teacher");
+  await expect(page.getByRole("slider", { name: "Grade" })).toHaveCount(0);
   await page
     .getByLabel("Your Question")
     .fill("When will the event details be confirmed?");
@@ -110,7 +131,7 @@ try {
     .getByRole("button", { name: "How can I register for the event?" })
     .click();
   await expect(
-    page.getByText("Visit the Tickets page and choose Register Now", {
+    page.getByText("Visit Tickets and choose Register Now", {
       exact: false,
     }),
   ).toBeVisible();
@@ -134,6 +155,13 @@ try {
   await expect(page.getByLabel("Full name")).toBeFocused();
   await page.getByLabel("Full name").fill("Preview User");
   await page.getByLabel("Email address").fill("preview@example.com");
+  await page.getByLabel("Phone number").fill("+971501234567");
+  await expect(page.getByRole("slider", { name: /Grade/ })).toHaveCount(0);
+  await page.getByLabel("Role", { exact: false }).selectOption("Teacher");
+  await expect(page.getByRole("slider", { name: /Grade/ })).toHaveCount(0);
+  await page.getByLabel("Role", { exact: false }).selectOption("Student");
+  await page.getByRole("slider", { name: /Grade/ }).focus();
+  await page.getByRole("slider", { name: /Grade/ }).press("End");
   await page.getByRole("button", { name: "Preview registration" }).click();
   await expect(
     page.getByText("Please acknowledge that this is a demo."),
@@ -201,7 +229,7 @@ try {
   const staticPage = await noScript.newPage();
   await staticPage.goto(`${baseURL}/tickets`);
   await expect(
-    staticPage.getByRole("heading", { name: "Be Part of the Conversation." }),
+    staticPage.getByRole("heading", { name: /Be Part of the\s+Conversation/ }),
   ).toBeVisible();
   expect(
     await staticPage
@@ -213,7 +241,7 @@ try {
   expect(submissions, "Frontend demo must not submit form data").toEqual([]);
   expect(errors, "Browser runtime errors").toEqual([]);
   console.log(
-    "PASS: six routes at 320/375/768/1024/1440/1920px; full-width layout; no overflow; all artwork loads; contact validation; FAQ; complete demo registration flow; keyboard mobile navigation; navigation order; scroll animation; reduced motion; no-JavaScript content visibility; no data submitted or persisted; no browser errors.",
+    "PASS: seven routes at 320/375/768/1024/1440/1920px; full-width layout; no overflow; all artwork loads; contact validation; FAQ; complete demo registration flow; keyboard mobile navigation; navigation order; scroll animation; reduced motion; no-JavaScript content visibility; no data submitted or persisted; no browser errors.",
   );
 } finally {
   await browser.close();

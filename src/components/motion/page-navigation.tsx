@@ -36,7 +36,9 @@ async function waitForVisibleArtwork() {
 
 // Registration sits after Tickets in the same reading order as the main navigation.
 const routeOrder = navigation.flatMap(({ href }) =>
-  href === "/tickets" ? [href, "/register", "/thank-you"] : [href],
+  href === "/tickets"
+    ? [href, "/register", "/thank-you", "/recover-ticket"]
+    : [href],
 );
 type NavigationOptions = { replace?: boolean; scroll?: boolean };
 type Navigate = (href: string, options?: NavigationOptions) => Promise<void>;
@@ -65,6 +67,16 @@ export function PageNavigation({ children }: { children: React.ReactNode }) {
       previous?.commit();
       if (previous?.timer) clearTimeout(previous.timer);
 
+      // Clicking the current page with no pending navigation needs no router
+      // refresh. A redundant push can race a subsequent full navigation.
+      if (target === currentPath.current && !previous) {
+        delete document.documentElement.dataset.pageDirection;
+        document.documentElement.style.removeProperty("--page-old-offset-y");
+        if (resetScroll)
+          window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+        return Promise.resolve();
+      }
+
       if (
         !document.startViewTransition ||
         preference.matches ||
@@ -78,8 +90,12 @@ export function PageNavigation({ children }: { children: React.ReactNode }) {
 
       const oldTop =
         document.getElementById("main")?.getBoundingClientRect().top ?? 0;
-      const from = routeOrder.indexOf(currentPath.current);
-      const to = routeOrder.indexOf(target);
+      const rank = (path: string) =>
+        path.startsWith("/ticket/")
+          ? routeOrder.indexOf("/recover-ticket") + 0.5
+          : routeOrder.indexOf(path);
+      const from = rank(currentPath.current);
+      const to = rank(target);
       const direction =
         from !== -1 && to !== -1 && to < from ? "backward" : "forward";
       document.documentElement.dataset.pageDirection = direction;

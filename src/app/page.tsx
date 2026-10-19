@@ -4,32 +4,31 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Artwork } from "@/components/artwork";
-import { team } from "@/config/site";
-export default function Home() {
+import { getSite } from "@/lib/site/server";
+export default async function Home() {
+  const { content } = await getSite();
+  const copy = content.home;
   return (
     <div className="page home-page">
       <section className="hero">
         <div className="hero-copy">
           <Badge>RSS Talk</Badge>
-          <h1>
-            Every Voice
-            <br />
-            Has a Story<span className="period">.</span>
+          <h1 className="multiline">
+            {copy.title}
+            <span className="period">.</span>
           </h1>
-          <p>
-            A platform for meaningful conversations,
-            <br className="desktop-break" /> new perspectives, and ideas that
-            matter.
-          </p>
+          <p>{copy.description}</p>
           <div className="actions">
             <Button asChild>
               <Link href="/about">
-                Explore the Show <ArrowRight size={18} />
+                {copy.exploreLabel}
+                <ArrowRight size={18} />
               </Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href="/tickets">
-                Get Tickets <ArrowRight size={18} />
+                {copy.ticketsLabel}
+                <ArrowRight size={18} />
               </Link>
             </Button>
           </div>
@@ -43,12 +42,12 @@ export default function Home() {
       >
         <div className="section-rule">
           <span />
-          <h2 id="team-title">Meet the Team</h2>
+          <h2 id="team-title">{copy.teamTitle}</h2>
           <span />
         </div>
         <div className="team-grid">
-          {team.map((member) => (
-            <Card key={member.name} className="team-card">
+          {content.team.map((member, index) => (
+            <Card key={index} className="team-card">
               <div className="avatar">
                 <UserRound size={32} strokeWidth={1.4} />
               </div>

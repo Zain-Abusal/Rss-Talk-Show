@@ -1,145 +1,294 @@
 "use client";
-import { useState, useRef } from "react";
-import { usePageNavigation } from "@/components/motion/page-navigation";
+import { useState, useRef, useEffect } from "react";
 import Link from "@/components/motion/transition-link";
+import { usePageNavigation } from "@/components/motion/page-navigation";
+import { useSite } from "@/components/site/site-provider";
+import { validateAnswers, type PublicSite } from "@/lib/site/model";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-export function RegistrationForm() {
+import { Textarea } from "@/components/ui/textarea";
+import { GradeSlider } from "@/components/grade-slider";
+import { Select } from "@/components/ui/select";
+export function RegistrationForm({
+  initialSite,
+}: { initialSite?: PublicSite } = {}) {
+  const context = useSite();
+  const initial = initialSite ?? context;
+  const [site, setSite] = useState(initial);
   const navigate = usePageNavigation();
-  const formRef = useRef<HTMLFormElement>(null);
+  const ref = useRef<HTMLFormElement>(null);
+  const requestId = useRef("");
+  const [role, setRole] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const preview = !site.configured;
+  useEffect(() => {
+    if (!initial.configured) return;
+    const controller = new AbortController();
+    async function refresh() {
+      try {
+        const response = await fetch("/api/site", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (response.ok) setSite((await response.json()) as PublicSite);
+      } catch {
+        if (!controller.signal.aborted)
+          setSite((s) => ({ ...s, canRegister: false, available: false }));
+      }
+    }
+    void refresh();
+    const interval = setInterval(() => {
+      if (!document.hidden) void refresh();
+    }, 10000);
+    return () => {
+      clearInterval(interval);
+      controller.abort();
+    };
+  }, [initial.configured]);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (pending) return;
+    setError("");
     const data = new FormData(e.currentTarget);
-    const next: Record<string, string> = {};
-    if (String(data.get("name") ?? "").trim().length < 2)
-      next.name = "Please enter your full name.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(data.get("email") ?? "")))
-      next.email = "Please enter a valid email address.";
-    if (!data.get("preview"))
-      next.preview = "Please acknowledge that this is a demo.";
-    setErrors(next);
-    if (Object.keys(next).length) {
+    const input = Object.fromEntries(
+      site.fields
+        .filter(
+          (f) =>
+            f.enabled &&
+            (f.key !== "grade" || role.toLowerCase() === "student"),
+        )
+        .map((f) => [f.key, String(data.get(f.key) ?? "")]),
+    );
+    const validation = validateAnswers(input, site.fields);
+    if (preview && !data.get("preview"))
+      validation.errors.preview = "Please acknowledge that this is a demo.";
+    setErrors(validation.errors);
+    if (Object.keys(validation.errors).length) {
       requestAnimationFrame(() =>
-        formRef.current
+        ref.current
           ?.querySelector<HTMLElement>('[aria-invalid="true"]')
           ?.focus(),
       );
       return;
     }
-    // Frontend-only transition: no data is sent, persisted or put into the URL.
-    // Keep button feedback separate from the router transition. Awaiting the
-    // view transition inside a React async transition would delay its own commit.
     setPending(true);
     try {
+      if (preview) {
+        await navigate("/thank-you");
+        return;
+      }
+      if (!site.canRegister)
+        throw new Error("Registration is currently closed.");
+      requestId.current ||= crypto.randomUUID();
+      const response = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestId: requestId.current,
+          version: site.version,
+          answers: validation.answers,
+          website: String(data.get("website") ?? ""),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        if (result.fields) setErrors(result.fields);
+        if (result.code === "IDEMPOTENCY_CONFLICT") requestId.current = "";
+        if (
+          ["FORM_CHANGED", "SOLD_OUT", "REGISTRATION_CLOSED"].includes(
+            result.code,
+          )
+        ) {
+          const fresh = await fetch("/api/site", { cache: "no-store" });
+          if (fresh.ok) setSite(await fresh.json());
+        }
+        throw new Error(result.error ?? "Registration could not be completed.");
+      }
       await navigate("/thank-you");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Please try again.");
     } finally {
       setPending(false);
     }
   }
+  const closed = site.configured && !site.canRegister;
   return (
     <Card className="registration-card">
       <div className="form-heading">
         <span className="step">01</span>
         <div>
           <h2>Your details</h2>
-          <p>A few details to join the conversation.</p>
+          <p>One registration reserves one seat.</p>
         </div>
       </div>
-      <p className="preview-banner">
-        Demo form · Please use sample details. Nothing is submitted or stored.
-      </p>
-      <form ref={formRef} onSubmit={submit} noValidate>
-        <div className="form-field">
-          <label htmlFor="registration-name">
-            Full name <span aria-hidden="true">*</span>
-          </label>
-          <Input
-            id="registration-name"
-            name="name"
-            autoComplete="name"
-            placeholder="Your full name"
-            required
-            minLength={2}
-            aria-invalid={!!errors.name}
-            aria-describedby={
-              errors.name ? "registration-name-error" : undefined
-            }
-          />
-          {errors.name && (
-            <p className="error" id="registration-name-error">
-              {errors.name}
-            </p>
+      {preview ? (
+        <p className="preview-banner">
+          Preview only. No ticket is issued until registration is connected.
+        </p>
+      ) : closed ? (
+        <p className="preview-banner" role="status">
+          {!site.available
+            ? "Registration is temporarily unavailable."
+            : site.remaining === 0
+              ? "All seats are reserved. Registration is closed."
+              : "Registration is not open yet."}
+        </p>
+      ) : (
+        <p className="preview-banner" role="status">
+          {site.remaining} of {site.maxSeats} seats available. Save your ticket
+          after registering.
+        </p>
+      )}
+      <form
+        method="post"
+        action="/api/register"
+        ref={ref}
+        onSubmit={submit}
+        noValidate
+      >
+        <fieldset disabled={pending || closed} className="form-fieldset">
+          {site.fields
+            .filter(
+              (f) =>
+                f.enabled &&
+                (f.key !== "grade" || role.toLowerCase() === "student"),
+            )
+            .map((field) => (
+              <div className="form-field" key={field.key}>
+                <label htmlFor={`registration-${field.key}`}>
+                  {field.label}
+                  {field.required ? (
+                    <span aria-hidden="true"> *</span>
+                  ) : (
+                    <span className="optional"> (optional)</span>
+                  )}
+                </label>
+                {field.key === "grade" ? (
+                  <GradeSlider
+                    id={`registration-${field.key}`}
+                    name={field.key}
+                    invalid={!!errors[field.key]}
+                    describedBy={
+                      errors[field.key] ? `${field.key}-error` : undefined
+                    }
+                  />
+                ) : field.type === "select" ? (
+                  <Select
+                    id={`registration-${field.key}`}
+                    name={field.key}
+                    required={field.required}
+                    aria-invalid={!!errors[field.key]}
+                    aria-describedby={
+                      errors[field.key] ? `${field.key}-error` : undefined
+                    }
+                    defaultValue=""
+                    onChange={
+                      field.key === "role"
+                        ? (e) => setRole(e.target.value)
+                        : undefined
+                    }
+                  >
+                    <option value="" disabled>
+                      {field.placeholder || "Select an option"}
+                    </option>
+                    {field.options.map((option) => (
+                      <option key={option}>{option}</option>
+                    ))}
+                  </Select>
+                ) : field.type === "textarea" ? (
+                  <Textarea
+                    id={`registration-${field.key}`}
+                    name={field.key}
+                    placeholder={field.placeholder}
+                    required={field.required}
+                    maxLength={4000}
+                    aria-invalid={!!errors[field.key]}
+                    aria-describedby={
+                      errors[field.key] ? `${field.key}-error` : undefined
+                    }
+                  />
+                ) : (
+                  <Input
+                    id={`registration-${field.key}`}
+                    name={field.key}
+                    type={field.type}
+                    autoComplete={
+                      field.key === "name"
+                        ? "name"
+                        : field.key === "email"
+                          ? "email"
+                          : field.key === "phone"
+                            ? "tel"
+                            : "off"
+                    }
+                    placeholder={field.placeholder}
+                    required={field.required}
+                    maxLength={320}
+                    aria-invalid={!!errors[field.key]}
+                    aria-describedby={
+                      errors[field.key] ? `${field.key}-error` : undefined
+                    }
+                  />
+                )}
+                {errors[field.key] && (
+                  <p className="error" id={`${field.key}-error`}>
+                    {errors[field.key]}
+                  </p>
+                )}
+              </div>
+            ))}
+          <div className="honeypot" aria-hidden="true">
+            <label htmlFor="website">Website</label>
+            <input
+              id="website"
+              name="website"
+              tabIndex={-1}
+              autoComplete="off"
+            />
+          </div>
+          {preview && (
+            <>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  name="preview"
+                  required
+                  aria-invalid={!!errors.preview}
+                />
+                <span>
+                  I understand this is a demo and does not issue a ticket.
+                </span>
+              </label>
+              {errors.preview && <p className="error">{errors.preview}</p>}
+            </>
           )}
-        </div>
-        <div className="form-field">
-          <label htmlFor="registration-email">
-            Email address <span aria-hidden="true">*</span>
-          </label>
-          <Input
-            id="registration-email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            placeholder="you@example.com"
-            required
-            aria-invalid={!!errors.email}
-            aria-describedby={
-              errors.email ? "registration-email-error" : undefined
-            }
-          />
-          {errors.email && (
-            <p className="error" id="registration-email-error">
-              {errors.email}
-            </p>
-          )}
-        </div>
-        <div className="form-field">
-          <label htmlFor="registration-school">
-            School / organization <span className="optional">(optional)</span>
-          </label>
-          <Input
-            id="registration-school"
-            name="school"
-            autoComplete="organization"
-            placeholder="Your school or organization"
-          />
-        </div>
-        <label className="checkbox-label" htmlFor="registration-preview">
-          <input
-            id="registration-preview"
-            name="preview"
-            type="checkbox"
-            required
-            aria-invalid={!!errors.preview}
-            aria-describedby={
-              errors.preview ? "registration-preview-error" : undefined
-            }
-          />
-          <span>
-            I understand this is a demo and does not register me for the event
-            or issue a ticket.
-          </span>
-        </label>
-        {errors.preview && (
-          <p className="error" id="registration-preview-error">
-            {errors.preview}
+          <Button type="submit" disabled={pending || closed}>
+            {pending
+              ? "Completing registration…"
+              : preview
+                ? "Preview registration"
+                : site.content.register.submitLabel}
+            <ArrowRight size={18} />
+          </Button>
+        </fieldset>
+        {error && (
+          <p role="alert" className="error form-error">
+            {error}
           </p>
         )}
-        <Button type="submit" disabled={pending}>
-          {pending ? "Opening preview…" : "Preview registration"}
-          <ArrowRight size={18} />
-        </Button>
         <p className="form-note">
-          Required fields are marked with an asterisk.
+          Required fields are marked with an asterisk.{" "}
+          {preview
+            ? "No data is sent."
+            : "One active ticket per email address."}
         </p>
       </form>
       <p className="register-help">
-        Have a question before you continue?{" "}
-        <Link href="/contact">Let’s talk.</Link>
+        Have a question? <Link href="/contact">Contact the event team.</Link>
       </p>
     </Card>
   );

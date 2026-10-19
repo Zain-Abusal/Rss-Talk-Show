@@ -15,3 +15,7 @@ Extraction: `scripts/extract-artwork.py` (requires Python, Pillow, NumPy and Sci
 - `illustrations/wave.webp`: extracted decorative asset, available for future use.
 
 Paths are configured in `src/config/site.ts`. Retain intrinsic aspect ratios. Source resolution is limited by the supplied JPEG; replace only with higher-resolution originals of the same artwork if available.
+
+`src/app/favicon.ico` (16–256px) and `src/app/apple-icon.png` (180px) reuse the original microphone illustration on a pale blue square. Next.js serves these automatically through its metadata file conventions. `wallet/google-logo.png` is a 512px square export of that same artwork for the Google Wallet class logo. `logo/rss-talk-show.png` is the full original wordmark exported to PNG. These are format/size exports, not replacement illustrations.
+
+The Apple Wallet and Google Wallet integrations were removed. The square logo export remains available as a general branding asset.
