@@ -13,7 +13,7 @@ export async function TicketCard({ token }: { token: string }) {
   return (
     <Card className="issued-ticket">
       <div className="ticket-information">
-        <span className="badge">
+        <span className="badge ticket-status" data-status={ticket.status}>
           {ticket.status === "cancelled"
             ? "Cancelled"
             : ticket.status === "checked_in"

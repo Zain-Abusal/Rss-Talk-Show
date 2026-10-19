@@ -88,6 +88,9 @@ export function Header() {
                 </Link>
               ))}
             </nav>
+            <Link href="/recover-ticket" className="mobile-recovery-link" onClick={() => setOpen(false)}>
+              Already registered? Find your ticket <ArrowUpRight size={16} aria-hidden="true" />
+            </Link>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

@@ -73,6 +73,8 @@ Use Vercel's trusted forwarded IP headers when deploying. If hosting behind anot
 
 Import this directory with the standard Next.js preset. Install: `npm ci`. Build: `npm run build`. Leave output at the framework default. Add the five variables above for the intended environment, set its matching `SITE_URL`, and redeploy. No static export or custom `vercel.json` is required. Hosted migrations are intentionally not applied automatically by builds.
 
+If login or another form returns `ORIGIN_MISMATCH`, set `SITE_URL` to the exact browser origin, including protocol and local port, then restart development or redeploy on Vercel. `http://localhost:3000` and `http://127.0.0.1:3000` are different origins. Each preview deployment needs a matching configuration; a production URL does not automatically authorize another preview domain. Do not remove the Origin check to work around configuration errors.
+
 ## Verification
 
 ```sh

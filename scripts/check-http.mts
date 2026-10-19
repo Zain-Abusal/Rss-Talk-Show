@@ -1,5 +1,20 @@
 import assert from "node:assert/strict";
-import { readBody, HttpError } from "../src/lib/http";
+import { readBody, requireOrigin, HttpError } from "../src/lib/http";
+const previousSiteUrl = process.env.SITE_URL;
+try {
+  process.env.SITE_URL = "https://event.example";
+  assert.doesNotThrow(() => requireOrigin(new Request("http://internal/api/admin/login", {
+    headers: { Origin: "https://event.example" },
+  })));
+  for (const origin of [null, "null", "https://attacker.example", "http://event.example", "https://event.example:444"]) {
+    assert.throws(() => requireOrigin(new Request("http://internal/api/admin/login", {
+      headers: origin === null ? {} : { Origin: origin },
+    })), (error: unknown) => error instanceof HttpError && error.status === 403 && error.code === "ORIGIN_MISMATCH");
+  }
+} finally {
+  if (previousSiteUrl === undefined) delete process.env.SITE_URL;
+  else process.env.SITE_URL = previousSiteUrl;
+}
 const request = (chunks: string[], headers?: HeadersInit) =>
   new Request("http://localhost/api/register", {
     method: "POST",

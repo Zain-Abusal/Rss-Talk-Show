@@ -2217,3 +2217,37 @@ footer {
 .grade-slider input[type="range"] { display: block; width: 100%; margin: 20px 0 12px; accent-color: var(--secondary); cursor: pointer; }
 .grade-slider input:focus-visible { outline: 3px solid var(--ring); outline-offset: 6px; }
 .grade-slider-limits { color: var(--muted-foreground); font-size: 11px; }
+
+/* Admission states remain legible without relying on color alone. */
+.scan-result { min-height: 260px; scroll-margin-block: 24px; border-width: 2px; }
+.scan-result:focus-visible { outline: 3px solid var(--ring); outline-offset: 4px; }
+.scan-status-icon { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: white; }
+.scan-result-checked_in { background: #edf7f0; border-color: #45835c; color: #205335; }
+.scan-result-already_checked_in { background: #fff7e7; border-color: #a77a26; color: #714e12; }
+.scan-result-cancelled, .scan-result-invalid, .scan-result-error { background: #fcf0ef; border-color: #b15a53; color: #853b35; }
+.scan-result .detail-label, .scan-result h2, .scan-result h3 { color: inherit; }
+.scan-result p { color: inherit; }
+.scan-result-pending { background: var(--muted); }
+.scan-result code { overflow-wrap: anywhere; }
+.mobile-menu, .admin-edit-dialog { overscroll-behavior: contain; }
+button, a { touch-action: manipulation; }
+@media (max-width: 760px) {
+  /* 16px fields avoid iOS auto-zoom and retain the user's scroll position. */
+  input.field, textarea.field, select.field,
+  .admin-panel input, .admin-panel textarea, .admin-panel select,
+  .admin-edit-dialog input, .admin-edit-dialog select { font-size: 16px; }
+  .header .menu-button { min-width: 44px; min-height: 44px; }
+  .mobile-menu { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+  .footer-links a, .back-link { min-height: 44px; display: inline-flex; align-items: center; }
+  .admin-sidebar nav { scroll-snap-type: x proximity; scrollbar-width: thin; }
+  .admin-sidebar nav button { scroll-snap-align: start; min-height: 48px; }
+  .admin-sidebar nav button[aria-current="page"] { box-shadow: inset 0 -3px 0 var(--primary); }
+  .admin-scan-layout { gap: 16px; }
+  .admin-scan-layout .scan-result { min-height: 220px; }
+  .scanner-camera .button, .admin-scan-layout form .button { width: 100%; }
+  .camera-preview { aspect-ratio: 4 / 3; object-fit: cover; max-height: 280px; }
+  footer { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+}
+.mobile-recovery-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; margin-top: 16px; padding: 12px 4px; border-top: 1px solid var(--border); font-size: 13px; font-weight: 600; }
+.status-tag[data-status="checked_in"], .ticket-status[data-status="checked_in"] { background: #edf7f0; color: #205335; border-color: #8db49a; }
+.status-tag[data-status="cancelled"], .ticket-status[data-status="cancelled"] { background: #fcf0ef; color: #853b35; border-color: #cd9690; }

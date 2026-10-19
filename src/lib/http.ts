@@ -26,7 +26,11 @@ export function requireOrigin(request: Request) {
   const origin = request.headers.get("origin");
   const expected = new URL(process.env.SITE_URL || request.url).origin;
   if (!origin || origin !== expected)
-    throw new HttpError(403, "This request is not allowed.");
+    throw new HttpError(
+      403,
+      "The site address does not match its configuration. Open the configured site address, or update SITE_URL and restart or redeploy.",
+      "ORIGIN_MISMATCH",
+    );
 }
 export async function readBody(request: Request) {
   if (Number(request.headers.get("content-length") || 0) > 100000)

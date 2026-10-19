@@ -112,3 +112,7 @@ Current functionality verification is recorded in `docs/VERIFICATION.md`. The ow
 Apple Wallet and Google Wallet support was removed at the user’s request. Keep QR PNG downloads, native file sharing and ticket recovery. No database rollback is needed.
 
 `npm run test:http` checks bounded request streaming. Keep the 100 KB byte limit enforced before buffering the whole body, including absent Content-Length. Registration hides the grade field until Student is selected; keep the responsive regression checks.
+
+## Automatic camera check-in
+
+Camera QR reads immediately POST to the protected check-in endpoint. Keep manual entry as fallback. Scanner stops after each read; per-session capture and parent request locks prevent duplicate submissions. Never show green before server confirmation. Results use green for checked_in, amber for already_checked_in and red for cancelled/invalid/error, with icons and text. Counts refresh separately so an overview failure cannot hide confirmed admission. Keep camera cleanup on stop/unmount and constrained 640×480 capture with 250ms decode interval. `scripts/check-backend.mts` uses a canvas camera stream to exercise the real decoder and automatic POST. The admin content editor is dynamically loaded only when its tab opens.

@@ -1,6 +1,6 @@
 "use client";
 import Link from "@/components/motion/transition-link";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   BarChart3,
@@ -13,6 +13,9 @@ import {
   LogOut,
   ArrowUpRight,
   RefreshCw,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
   X,
   Save,
   Plus,
@@ -22,7 +25,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ContentEditor } from "./content-editor";
+import dynamic from "next/dynamic";
+const ContentEditor = dynamic(() => import("./content-editor").then((module) => module.ContentEditor), { loading: () => <p role="status">Loading content editor…</p> });
 import { QrScanner } from "./qr-scanner";
 import type { AdminData, Ticket } from "@/lib/admin-model";
 import {
@@ -90,6 +94,9 @@ export function AdminDashboard({ initial }: { initial: AdminData }) {
   const [total, setTotal] = useState(initial.stats.total);
   const [editing, setEditing] = useState<Ticket | null>(null);
   const [code, setCode] = useState("");
+  const scanLock = useRef(false);
+  const scanResult = useRef<HTMLDivElement>(null);
+  const [checking, setChecking] = useState(false);
   const [scan, setScan] = useState<{
     result: string;
     ticket?: {
@@ -173,12 +180,31 @@ export function AdminDashboard({ initial }: { initial: AdminData }) {
       );
     });
   }
+  async function checkIn(value: string) {
+    if (scanLock.current || !value.trim()) return;
+    scanLock.current = true;
+    setChecking(true);
+    setCode(value);
+    setScan(null);
+    setError("");
+    setNotice("");
+    try {
+      const result = await api("/api/admin/check-in", "POST", { code: value });
+      setScan(result);
+      // A refresh failure must never hide a server-confirmed admission.
+      void refresh().catch(() => setNotice("Check-in result saved. Refresh the overview to update counts."));
+    } catch (reason) {
+      setScan({ result: "error" });
+      setError(reason instanceof Error ? reason.message : "Unable to check this ticket. Try again.");
+    } finally {
+      scanLock.current = false;
+      setChecking(false);
+      requestAnimationFrame(() => scanResult.current?.focus({ preventScroll: false }));
+    }
+  }
   async function validate(event: React.FormEvent) {
     event.preventDefault();
-    await task(async () => {
-      setScan(await api("/api/admin/check-in", "POST", { code }));
-      await refresh();
-    });
+    await checkIn(code);
   }
   const occupied = data.settings.registered_count;
   const remaining = Math.max(0, data.settings.max_seats - occupied);
@@ -411,7 +437,7 @@ export function AdminDashboard({ initial }: { initial: AdminData }) {
                         <code>{ticket.ticket_number}</code>
                       </td>
                       <td>
-                        <span className="status-tag">
+                        <span className="status-tag" data-status={ticket.status}>
                           {ticket.status.replaceAll("_", " ")}
                         </span>
                       </td>
@@ -457,14 +483,9 @@ export function AdminDashboard({ initial }: { initial: AdminData }) {
               <h2>Validate and check in</h2>
               <p>
                 Scan a QR code, paste its contents or enter the ticket number. A
-                valid ticket can be admitted once.
+                valid ticket is checked in automatically after scanning. Each ticket admits one person.
               </p>
-              <QrScanner
-                onRead={(value) => {
-                  setCode(value);
-                  setScan(null);
-                }}
-              />
+              <QrScanner disabled={checking || busy} onStart={() => { setScan(null); setError(""); }} onRead={(value) => void checkIn(value)} />
               <form
                 method="post"
                 action="/api/admin/check-in"
@@ -474,20 +495,30 @@ export function AdminDashboard({ initial }: { initial: AdminData }) {
                 <Textarea
                   id="scan-code"
                   value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  onChange={(e) => { setCode(e.target.value); setScan(null); }}
                   required
                   rows={3}
                   placeholder="RSS1:… or RSS-…"
                 />
-                <Button type="submit" disabled={busy || !code.trim()}>
+                <Button type="submit" disabled={checking || busy || !code.trim()}>
                   <ScanLine size={17} />
-                  Validate and check in
+                  {checking ? "Checking ticket…" : "Validate and check in"}
                 </Button>
               </form>
             </Card>
-            <Card className="admin-panel scan-result" aria-live="polite">
+            <Card
+              ref={scanResult}
+              tabIndex={-1}
+              className={`admin-panel scan-result scan-result-${checking ? "pending" : scan?.result ?? "idle"}`}
+              aria-live="polite"
+              aria-atomic="true"
+              aria-busy={checking}
+            >
               {scan ? (
                 <>
+                  <span className="scan-status-icon" aria-hidden="true">
+                    {scan.result === "checked_in" ? <CheckCircle2 size={32} /> : scan.result === "already_checked_in" ? <AlertTriangle size={32} /> : <XCircle size={32} />}
+                  </span>
                   <span className="detail-label">
                     {scan.result === "checked_in"
                       ? "Admission confirmed"
@@ -501,6 +532,7 @@ export function AdminDashboard({ initial }: { initial: AdminData }) {
                           already_checked_in: "Already checked in",
                           cancelled: "Ticket cancelled",
                           invalid: "Ticket not found",
+                          error: "Check-in not confirmed",
                         } as Record<string, string>
                       )[scan.result]
                     }
@@ -509,7 +541,7 @@ export function AdminDashboard({ initial }: { initial: AdminData }) {
                     <>
                       <h3>{scan.ticket.name}</h3>
                       <p>
-                        {scan.ticket.role} · {scan.ticket.grade}
+                        {[scan.ticket.role, scan.ticket.grade].filter(Boolean).join(" · ")}
                       </p>
                       <code>{scan.ticket.ticketNumber}</code>
                       {scan.ticket.checkedInAt && (
@@ -519,16 +551,15 @@ export function AdminDashboard({ initial }: { initial: AdminData }) {
                   )}
                   {scan.result !== "checked_in" && (
                     <p>
-                      Do not admit this ticket again. Confirm the details with
-                      the event team.
+                      {scan.result === "error" ? "Check the connection and scan again. Do not admit anyone without a confirmed result." : "Do not admit this ticket. Confirm the details with the event team."}
                     </p>
                   )}
                 </>
               ) : (
                 <>
                   <ScanLine size={40} />
-                  <h2>Ready for a ticket</h2>
-                  <p>The validation result will appear here.</p>
+                  <h2>{checking ? "Checking ticket…" : "Ready for a ticket"}</h2>
+                  <p>{checking ? "Waiting for the server to confirm admission." : "Scan a ticket to check it in automatically, or enter its code manually."}</p>
                 </>
               )}
             </Card>

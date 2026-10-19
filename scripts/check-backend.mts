@@ -299,19 +299,50 @@ try {
   );
   await page.goto(base + "/admin");
   await page.getByRole("button", { name: "QR check-in", exact: true }).click();
-  await page.getByLabel("Ticket code or number").fill(`RSS1:${token}`);
-  await page
-    .getByRole("button", { name: "Validate and check in", exact: true })
-    .click();
+  // Feed the real QR decoder a deterministic camera stream. No physical camera needed.
+  const qrBytes = await (await request(`/api/tickets/${token}/qr`)).body();
+  const qrDataUrl = `data:image/png;base64,${qrBytes.toString("base64")}`;
+  // tsx names nested callbacks with a helper; provide it in the isolated test browser.
+  await page.evaluate("window.__name = (fn) => fn");
+  await page.evaluate(async (source) => {
+    const image = new Image();
+    image.src = source;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 480;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, 640, 480);
+    ctx.drawImage(image, 140, 60, 360, 360);
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+      configurable: true,
+      value: async () => {
+        const stream = canvas.captureStream(10);
+        const timer = window.setInterval(() => ctx.drawImage(image, 140, 60, 360, 360), 100);
+        stream.getVideoTracks()[0].addEventListener("ended", () => window.clearInterval(timer));
+        return stream;
+      },
+    });
+  }, qrDataUrl);
+  const checkInRequests: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() === "POST" && r.url().endsWith("/api/admin/check-in")) checkInRequests.push(r.url());
+  });
+  await page.getByRole("button", { name: "Scan with camera", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Check-in recorded", exact: true }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Validate and check in", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Already checked in", exact: true }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15000 });
+  await expect(page.locator(".scan-result-checked_in")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scan with camera", exact: true })).toBeEnabled();
+  assert.equal(checkInRequests.length, 1, "Camera scan must auto-submit exactly once");
+  await page.getByRole("button", { name: "Validate and check in", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Already checked in", exact: true })).toBeVisible();
+  await expect(page.locator(".scan-result-already_checked_in")).toBeVisible();
+  await page.getByLabel("Ticket code or number").fill("RSS-0000000000000000");
+  await page.getByRole("button", { name: "Validate and check in", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Ticket not found", exact: true })).toBeVisible();
+  await expect(page.locator(".scan-result-invalid")).toBeVisible();
   await page
     .getByRole("button", { name: "Registrations", exact: true })
     .click();
